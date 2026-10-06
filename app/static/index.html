@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trust Ledger Auditor</title>
+<style>
+:root{--bg:#0f1419;--panel:#171d25;--panel2:#1d2530;--line:#2a3441;--text:#e6ebf1;--mute:#8b98a8;
+--ok:#3fb27f;--warn:#e0a63a;--bad:#e5564f;--info:#4c9be8;--r:10px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{display:flex;gap:16px;align-items:center;padding:14px 24px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+h1{font-size:17px;margin:0;font-weight:650;letter-spacing:.2px}
+.pill{font-size:12px;padding:3px 10px;border-radius:99px;border:1px solid var(--line);color:var(--mute)}
+.pill.ok{color:var(--ok);border-color:#2b6b50}.pill.bad{color:var(--bad);border-color:#7a2f2b}
+.sp{flex:1}
+button{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:7px 12px;cursor:pointer;font:inherit}
+button:hover{border-color:var(--info)}
+main{padding:20px 24px;max-width:1280px;margin:0 auto}
+#alert{display:none;margin-bottom:16px;padding:12px 16px;border-radius:var(--r);background:#3a1f1e;border:1px solid #7a2f2b;color:#ffb4af}
+#alert b{color:#fff}
+.search{display:flex;gap:8px;margin-bottom:20px}
+.search input{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:10px 12px;font:inherit}
+.search input:focus{outline:none;border-color:var(--info)}
+.search{margin-bottom:8px}
+.filters{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:20px;color:var(--mute);font-size:12px}
+.filters input,.filters select{background:var(--panel);border:1px solid var(--line);border-radius:6px;color:var(--text);padding:5px 8px;font:inherit;color-scheme:dark}
+.filters a{color:var(--mute)}
+.ledger{font-size:12px;color:var(--mute)}.ledger.ok{color:var(--ok)}
+h2{font-size:12px;text-transform:uppercase;letter-spacing:.9px;color:var(--mute);margin:24px 0 10px;font-weight:600}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px;cursor:pointer}
+.card:hover{border-color:#3b4a5c}
+.card .top{display:flex;justify-content:space-between;align-items:baseline}
+.card .name{font-weight:600}
+.score{font-size:30px;font-weight:700;font-variant-numeric:tabular-nums}
+.bar{height:6px;background:var(--panel2);border-radius:4px;margin:8px 0;overflow:hidden}
+.bar i{display:block;height:100%;transition:width .4s,background .4s}
+.meta{color:var(--mute);font-size:12px}
+table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);font-size:13px}
+th{color:var(--mute);font-weight:600;font-size:12px;background:var(--panel2)}
+tr.row{cursor:pointer}tr.row:hover td{background:var(--panel2)}
+td.mono,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px}
+.badge{display:inline-block;font-size:11px;font-weight:650;padding:2px 8px;border-radius:5px;letter-spacing:.3px}
+.VERIFIED{background:#16382b;color:var(--ok)}.SUSPICIOUS{background:#3d3015;color:var(--warn)}
+.TAMPERED{background:#401f1d;color:var(--bad)}.INVALID{background:#2c2f3a;color:#aab3c5}.IGNORED{background:#2c2f3a;color:#aab3c5}
+.empty{padding:24px;text-align:center;color:var(--mute);background:var(--panel);border:1px dashed var(--line);border-radius:var(--r)}
+#drawer{position:fixed;top:0;right:0;bottom:0;width:min(560px,100vw);background:var(--panel);border-left:1px solid var(--line);
+transform:translateX(100%);transition:transform .2s;overflow:auto;padding:20px;z-index:10;box-shadow:-12px 0 30px #0006}
+#drawer.open{transform:none}
+#drawer h3{margin:0 0 4px;font-size:16px}
+.sec{margin:18px 0 6px;color:var(--mute);font-size:12px;text-transform:uppercase;letter-spacing:.8px}
+pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;overflow:auto;margin:0;font-size:12px}
+.chk{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.chk .ic{width:18px;font-weight:700}.chk.ok .ic{color:var(--ok)}.chk.fail .ic{color:var(--bad)}.chk.fail.suspicious .ic{color:var(--warn)}
+.chk .c{font-weight:600;font-size:12px}.chk .d{color:var(--mute);font-size:12px}
+.x{float:right}
+.proof{margin-top:8px;padding:10px;border-radius:8px;background:var(--bg);border:1px solid var(--line);font-size:13px}
+@media(max-width:700px){.hide-s{display:none}main{padding:14px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Trust Ledger Auditor</h1>
+  <span id="node" class="pill">node…</span>
+  <span id="live" class="pill">live: connecting</span>
+  <span class="sp"></span>
+  <button id="reset" title="Clear the local index (the ledger itself is untouched)">Reset demo</button>
+</header>
+<main>
+  <div id="alert"></div>
+  <form class="search" id="sf">
+    <input id="q" placeholder="Look up a message: block id (0x…), tag (iot.device-03) or device id" autocomplete="off">
+    <button>Search ledger</button>
+  </form>
+  <div class="filters">
+    <label>From <input type="datetime-local" id="df"></label>
+    <label>To <input type="datetime-local" id="dt"></label>
+    <label>Status <select id="st"><option value="">any</option><option>VERIFIED</option><option>SUSPICIOUS</option><option>TAMPERED</option><option>INVALID</option></select></label>
+    <a href="#" id="clearf">clear filters</a>
+  </div>
+  <div id="results"></div>
+
+  <h2>Device trust</h2>
+  <div class="cards" id="devices"><div class="empty" style="grid-column:1/-1">No devices yet. Run <span class="mono">python -m scripts.simulate</span>.</div></div>
+
+  <h2>Live block feed</h2>
+  <table>
+    <thead><tr><th>Time</th><th>Status</th><th>Device</th><th class="hide-s">Seq</th><th>Block id</th><th>Ledger</th><th class="hide-s">Finding</th></tr></thead>
+    <tbody id="feed"></tbody>
+  </table>
+</main>
+
+<aside id="drawer"></aside>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const short = id => id ? id.slice(0, 10) + '…' + id.slice(-6) : '';
+const colour = s => s >= 80 ? 'var(--ok)' : s >= 50 ? 'var(--warn)' : 'var(--bad)';
+const fmt = t => new Date(t * 1000).toLocaleTimeString();
+const badge = s => `<span class="badge ${s}">${s}</span>`;
+const devices = new Map(); const blocks = [];
+
+function finding(b) {
+  const f = (b.checks || []).filter(c => !c.ok);
+  return f.length ? esc(f[0].code.replaceAll('_', ' ').toLowerCase()) : '';
+}
+function renderDevices() {
+  const list = [...devices.values()].sort((a, b) => a.score - b.score || a.device_id.localeCompare(b.device_id));
+  if (!list.length) return;
+  $('#devices').innerHTML = list.map(d => `
+    <div class="card" onclick="filterDevice('${esc(d.device_id)}')">
+      <div class="top"><span class="name">${esc(d.device_id)}</span>
+        <span class="score" style="color:${colour(d.score)}">${Math.round(d.score)}%</span></div>
+      <div class="bar"><i style="width:${d.score}%;background:${colour(d.score)}"></i></div>
+      <div class="meta">${d.total} messages · ${d.verified} verified · ${d.flagged} flagged</div>
+    </div>`).join('');
+  const bad = list.filter(d => d.score < 50);
+  const al = $('#alert');
+  if (bad.length) { al.style.display = 'block';
+    al.innerHTML = '<b>Security alert:</b> ' + bad.map(d => `${esc(d.device_id)} trust dropped to ${Math.round(d.score)}%`).join(' · ') + ' — messages from these devices should not be relied upon.';
+  } else al.style.display = 'none';
+}
+function ledgerCell(b) {
+  const s = b.block_state || '';
+  if (s.startsWith('confirmed')) return '<span class="ledger ok">✓ confirmed</span>';
+  if (s.startsWith('solid')) return '<span class="ledger ok">✓ solid</span>';
+  return `<span class="ledger">${s ? 'pending' : '—'}</span>`;
+}
+function row(b) {
+  return `<tr class="row" data-id="${b.block_id}" onclick="openBlock('${b.block_id}')">
+    <td>${fmt(b.ingested_at)}</td><td>${badge(b.status)}</td><td>${esc(b.device_id || '—')}</td>
+    <td class="hide-s">${b.seq ?? ''}</td><td class="mono">${short(b.block_id)}</td><td>${ledgerCell(b)}</td><td class="hide-s">${finding(b)}</td></tr>`;
+}
+function renderFeed() {
+  $('#feed').innerHTML = blocks.length ? blocks.slice(0, 60).map(row).join('')
+    : '<tr><td colspan="7"><div class="empty" style="border:0">Waiting for blocks…</div></td></tr>';
+}
+async function load() {
+  const [d, b] = await Promise.all([fetch('/api/devices').then(r => r.json()), fetch('/api/blocks?limit=60').then(r => r.json())]);
+  devices.clear(); d.forEach(x => devices.set(x.device_id, x));
+  blocks.length = 0; blocks.push(...b);
+  if (!d.length) $('#devices').innerHTML = '<div class="empty" style="grid-column:1/-1">No devices yet. Run <span class="mono">python -m scripts.simulate</span>.</div>';
+  renderDevices(); renderFeed();
+}
+function connect() {
+  const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
+  ws.onopen = () => { $('#live').textContent = 'live'; $('#live').className = 'pill ok'; };
+  ws.onclose = () => { $('#live').textContent = 'live: reconnecting'; $('#live').className = 'pill bad'; setTimeout(connect, 2000); };
+  ws.onmessage = e => {
+    const m = JSON.parse(e.data);
+    if (m.type === 'state') {  // block got solid / confirmed after it was audited
+      const b = blocks.find(x => x.block_id === m.block_id);
+      if (b) { b.block_state = m.block_state; b.solid = m.solid; renderFeed(); }
+      if ($('#drawer').dataset.id === m.block_id && $('#lstate')) $('#lstate').textContent = m.block_state;
+      return;
+    }
+    if (m.type !== 'block') return;
+    blocks.unshift(m.block); if (blocks.length > 200) blocks.pop();
+    if (m.device) devices.set(m.device.device_id, m.device);
+    renderDevices(); renderFeed();
+  };
+}
+async function health() {
+  try {
+    const h = await fetch('/api/health').then(r => r.json()); const n = h.node;
+    const el = $('#node');
+    if (n.ok) { el.textContent = `node ok · milestone ${n.latest_milestone ?? '?'}`; el.className = 'pill ok'; }
+    else { el.textContent = 'node unreachable'; el.className = 'pill bad'; el.title = n.error || ''; }
+  } catch { $('#node').textContent = 'auditor offline'; $('#node').className = 'pill bad'; }
+}
+function filterParams() {
+  const p = new URLSearchParams(); const q = $('#q').value.trim();
+  if (q) p.set('q', q);
+  if ($('#df').value) p.set('from', new Date($('#df').value).getTime() / 1000);
+  if ($('#dt').value) p.set('to', new Date($('#dt').value).getTime() / 1000);
+  if ($('#st').value) p.set('status', $('#st').value);
+  return p;
+}
+async function search(qOverride) {
+  const box = $('#results'); box.innerHTML = '<div class="empty">Searching…</div>';
+  if (typeof qOverride === 'string') $('#q').value = qOverride;
+  const params = filterParams(); const q = params.get('q') || 'filters';
+  const r = await fetch('/api/search?' + params); const d = await r.json();
+  if (!r.ok) { box.innerHTML = `<div class="empty">${esc(d.detail || 'Error')}</div>`; return; }
+  if (!d.found) { box.innerHTML = `<div class="empty">Nothing found for <b>${esc(q)}</b>${d.kind === 'block_id' ? ' — the ledger node does not know this block.' : '.'}</div>`; return; }
+  box.innerHTML = `<h2 style="margin-top:0">${d.results.length} result${d.results.length > 1 ? 's' : ''} for “${esc(q)}” <a href="#" onclick="$('#results').innerHTML='';return false" style="float:right;color:var(--mute)">clear</a></h2>
+    <table><tbody>${d.results.slice(0, 50).map(row).join('')}</tbody></table>`;
+  if (d.kind === 'block_id') openBlock(d.results[0].block_id);
+}
+function filterDevice(id) { search(id); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+async function openBlock(id) {
+  const d = $('#drawer'); d.classList.add('open'); d.dataset.id = id; d.innerHTML = '<p class="meta">Loading…</p>';
+  const b = await fetch('/api/blocks/' + id).then(r => r.json());
+  const checks = (b.checks || []).map(c => `
+    <div class="chk ${c.ok ? 'ok' : 'fail ' + c.severity}"><div class="ic">${c.ok ? '✓' : '✗'}</div>
+    <div><div class="c">${esc(c.code)}${c.ok ? '' : ` <span class="meta">(−${c.penalty} trust)</span>`}</div><div class="d">${esc(c.detail)}</div></div></div>`).join('');
+  d.innerHTML = `<button class="x" onclick="$('#drawer').classList.remove('open')">Close</button>
+    <h3>${badge(b.status)} ${esc(b.device_id || 'unknown device')}</h3>
+    <div class="meta mono" style="word-break:break-all">${esc(b.block_id)}</div>
+    <div class="meta">tag <span class="mono">${esc(b.tag)}</span> · ledger state <span id="lstate">${esc(b.block_state || 'unknown')}</span> (solid: <span id="lsolid">${b.solid == null ? '?' : b.solid ? 'yes' : 'no'}</span>) · trust after: ${b.score_after == null ? '—' : Math.round(b.score_after) + '%'}</div>
+    <div class="sec">Verification</div>${checks}
+    <div class="sec">Ledger proof</div>
+    <button onclick="proof('${b.block_id}')">Re-read block from the ledger</button><div id="proof"></div>
+    <div class="sec">Message payload</div><pre>${esc(b.message ? JSON.stringify(b.message, null, 2) : b.raw_data)}</pre>
+    <div class="sec">Parents (traceability)</div><pre>${esc((b.parents || []).join('\n'))}</pre>`;
+  proof(id, true);
+}
+async function proof(id, quiet) {
+  const p = await fetch(`/api/blocks/${id}/verify`).then(r => r.json());
+  if (p.block_state && $('#lstate')) $('#lstate').textContent = p.block_state;
+  if (p.solid != null && $('#lsolid')) $('#lsolid').textContent = p.solid ? 'yes' : 'no';
+  if (quiet) return;
+  $('#proof').innerHTML = `<div class="proof">${p.on_ledger ? (p.match ? '✓' : '✗') : '✗'} ${esc(p.detail)}<br>
+    <span class="meta">on ledger: ${p.on_ledger} · indexed: ${p.indexed} · state: ${esc(p.block_state || '—')}</span></div>`;
+}
+$('#sf').onsubmit = e => { e.preventDefault(); if ([...filterParams().keys()].length) search(); };
+$('#clearf').onclick = e => { e.preventDefault(); $('#df').value = $('#dt').value = $('#st').value = ''; $('#q').value = ''; $('#results').innerHTML = ''; };
+['#df', '#dt', '#st'].forEach(s => $(s).onchange = () => search());
+$('#reset').onclick = async () => { if (confirm('Clear the local index?')) { await fetch('/api/reset', { method: 'POST' }); $('#results').innerHTML = ''; load(); } };
+document.addEventListener('keydown', e => { if (e.key === 'Escape') $('#drawer').classList.remove('open'); });
+load(); connect(); health(); setInterval(health, 10000);
+</script>
+</body>
+</html>
